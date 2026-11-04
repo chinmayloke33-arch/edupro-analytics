@@ -2,62 +2,68 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-from analytical_pipeline import run_analytical_pipeline
+from process_data import run_analytical_pipeline
+
 
 # ============================================================
-
 # PAGE CONFIGURATION
-
 # ============================================================
 
 st.set_page_config(
-page_title="EduPro Quality Engine",
-page_icon="🎓",
-layout="wide"
+    page_title="EduPro Quality Engine",
+    page_icon="🎓",
+    layout="wide"
 )
 
+
 # ============================================================
-
 # DASHBOARD HEADER
-
 # ============================================================
 
 st.title("🎓 EduPro Quality Engine")
 
 st.subheader(
-"Instructor Performance & Course Quality Analytics"
+    "Instructor Performance & Course Quality Analytics"
 )
 
 st.markdown(
-"An integrated analytical platform for monitoring "
-"instructor performance, course quality and student enrollment."
+    "An integrated analytical platform for monitoring "
+    "instructor performance, course quality and student enrollment."
 )
 
 st.markdown("---")
 
+
 # ============================================================
-
 # DATA LOADING
-
 # ============================================================
 
 @st.cache_data
 def load_data():
-
-
-return run_analytical_pipeline(
-    "data/dataset.xlsx"
-)
+    return run_analytical_pipeline("data/dataset.xlsx")
 
 
 try:
+    with st.spinner("Loading and processing datasets..."):
+        teachers_df, courses_df, master_df = load_data()
+
+    st.success("Datasets loaded successfully!")
+
+except FileNotFoundError:
+    st.error(
+        "Dataset not found. Please upload dataset.xlsx "
+        "inside the data folder."
+    )
+    st.stop()
+
+except Exception as e:
+    st.error(f"Dashboard Error: {e}")
+    st.stop()
 
 
-teachers_df, courses_df, master_df = load_data()
-
-# ========================================================
+# ============================================================
 # SIDEBAR FILTERS
-# ========================================================
+# ============================================================
 
 st.sidebar.title("🎛️ Dashboard Controls")
 
@@ -87,16 +93,15 @@ selected_level = st.sidebar.selectbox(
     level_options
 )
 
-# ========================================================
-# FILTERING
-# ========================================================
+
+# ============================================================
+# DATA FILTERING
+# ============================================================
 
 f_teachers = teachers_df.copy()
-
 f_master = master_df.copy()
 
 if selected_expertise != "All":
-
     f_teachers = f_teachers[
         f_teachers["Expertise"] == selected_expertise
     ]
@@ -106,14 +111,14 @@ if selected_expertise != "All":
     ]
 
 if selected_level != "All":
-
     f_master = f_master[
         f_master["CourseLevel"] == selected_level
     ]
 
-# ========================================================
-# KPI SECTION
-# ========================================================
+
+# ============================================================
+# KEY PERFORMANCE INDICATORS
+# ============================================================
 
 st.markdown("## 📊 Key Performance Indicators")
 
@@ -130,7 +135,6 @@ average_course_rating = (
 )
 
 total_users = f_master["UserID"].nunique()
-
 total_enrollments = len(f_master)
 
 col1.metric(
@@ -155,16 +159,16 @@ col4.metric(
 
 st.markdown("---")
 
-# ========================================================
+
+# ============================================================
 # INSTRUCTOR PERFORMANCE
-# ========================================================
+# ============================================================
 
 st.markdown("## 🏆 Instructor Performance Analysis")
 
 chart_col1, chart_col2 = st.columns(2)
 
 with chart_col1:
-
     st.markdown("### Instructor Leaderboard")
 
     leaderboard = f_teachers.sort_values(
@@ -187,11 +191,9 @@ with chart_col1:
     )
 
 with chart_col2:
-
     st.markdown("### Teaching Experience Distribution")
 
     if not f_teachers.empty:
-
         fig = px.histogram(
             f_teachers,
             x="YearsOfExperience",
@@ -204,27 +206,24 @@ with chart_col2:
             fig,
             use_container_width=True
         )
-
     else:
-
         st.info("No instructor data available.")
 
 st.markdown("---")
 
-# ========================================================
+
+# ============================================================
 # COURSE QUALITY ANALYSIS
-# ========================================================
+# ============================================================
 
 st.markdown("## 📚 Course Quality Analysis")
 
 course_col1, course_col2 = st.columns(2)
 
 with course_col1:
-
     st.markdown("### Course Rating Distribution")
 
     if not f_master.empty:
-
         fig = px.histogram(
             f_master,
             x="CourseRating",
@@ -236,17 +235,13 @@ with course_col1:
             fig,
             use_container_width=True
         )
-
     else:
-
         st.info("No course data available.")
 
 with course_col2:
-
     st.markdown("### Average Rating by Course Level")
 
     if not f_master.empty:
-
         level_rating = (
             f_master.groupby("CourseLevel")["CourseRating"]
             .mean()
@@ -265,21 +260,19 @@ with course_col2:
             fig,
             use_container_width=True
         )
-
     else:
-
         st.info("No course data available.")
 
 st.markdown("---")
 
-# ========================================================
-# ENROLLMENT ANALYTICS
-# ========================================================
+
+# ============================================================
+# STUDENT ENROLLMENT ANALYTICS
+# ============================================================
 
 st.markdown("## 👥 Student Enrollment Analytics")
 
 if not f_master.empty:
-
     enrollment_data = (
         f_master.groupby("TeacherName")
         .size()
@@ -303,26 +296,25 @@ if not f_master.empty:
         fig,
         use_container_width=True
     )
-
 else:
-
     st.info("No enrollment data available.")
 
-# ========================================================
-# DATA TABLE
-# ========================================================
+
+# ============================================================
+# INTEGRATED DATASET
+# ============================================================
 
 with st.expander("🔍 View Integrated Analytical Dataset"):
-
     st.dataframe(
         f_master,
         use_container_width=True,
         hide_index=True
     )
 
-# ========================================================
-# DOWNLOAD REPORTS
-# ========================================================
+
+# ============================================================
+# DOWNLOAD ANALYTICAL REPORTS
+# ============================================================
 
 st.markdown("---")
 
@@ -331,7 +323,6 @@ st.markdown("## 📥 Download Analytical Reports")
 download_col1, download_col2 = st.columns(2)
 
 with download_col1:
-
     st.download_button(
         "Download Instructor Report",
         data=f_teachers.to_csv(index=False).encode("utf-8"),
@@ -340,7 +331,6 @@ with download_col1:
     )
 
 with download_col2:
-
     st.download_button(
         "Download Integrated Dataset",
         data=f_master.to_csv(index=False).encode("utf-8"),
@@ -349,30 +339,13 @@ with download_col2:
     )
 
 
-except FileNotFoundError:
-
-
-st.error(
-    "Dataset not found. Please place dataset.xlsx "
-    "inside the data folder."
-)
-
-
-except Exception as e:
-
-
-st.error(f"Dashboard Error: {e}")
-
-
 # ============================================================
-
 # FOOTER
-
 # ============================================================
 
 st.markdown("---")
 
 st.caption(
-"EduPro Quality Engine | Instructor Performance "
-"& Course Quality Analytics"
+    "EduPro Quality Engine | Instructor Performance "
+    "& Course Quality Analytics"
 )
