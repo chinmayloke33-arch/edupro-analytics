@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+from pathlib import Path
+
 from process_data import run_analytical_pipeline
 
 
@@ -10,28 +12,72 @@ from process_data import run_analytical_pipeline
 # ============================================================
 
 st.set_page_config(
-    page_title="EduPro Quality Engine",
-    page_icon="🎓",
-    layout="wide"
+    page_title="EduPro | Instructor Analytics",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
 # ============================================================
-# DASHBOARD HEADER
+# DATASET LOCATION
 # ============================================================
 
-st.title("🎓 EduPro Quality Engine")
+BASE_DIR = Path(__file__).resolve().parent
 
-st.subheader(
-    "Instructor Performance & Course Quality Analytics"
+DATASET_PATH = BASE_DIR / "EduPro Online Platform.xlsx"
+
+
+# ============================================================
+# CUSTOM CSS
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    .main-title {
+        font-size: 36px;
+        font-weight: 700;
+        color: #1E3A5F;
+    }
+
+    .sub-title {
+        font-size: 16px;
+        color: #64748b;
+        margin-bottom: 25px;
+    }
+
+    div[data-testid="stMetric"] {
+        background-color: #f1f5f9;
+        padding: 18px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    '<div class="main-title">EduPro Analytics Dashboard</div>',
+    unsafe_allow_html=True
 )
 
 st.markdown(
-    "An integrated analytical platform for monitoring "
-    "instructor performance, course quality and student enrollment."
+    '<div class="sub-title">'
+    'Instructor Performance and Course Quality Analysis'
+    '</div>',
+    unsafe_allow_html=True
 )
 
-st.markdown("---")
+st.divider()
 
 
 # ============================================================
@@ -40,24 +86,34 @@ st.markdown("---")
 
 @st.cache_data
 def load_data():
-    return run_analytical_pipeline("data/dataset.xlsx")
+
+    if not DATASET_PATH.exists():
+
+        raise FileNotFoundError(
+            f"Dataset not found: {DATASET_PATH}"
+        )
+
+    return run_analytical_pipeline(DATASET_PATH)
 
 
 try:
-    with st.spinner("Loading and processing datasets..."):
+
+    with st.spinner("Loading EduPro dataset..."):
+
         teachers_df, courses_df, master_df = load_data()
 
-    st.success("Datasets loaded successfully!")
+except Exception as error:
 
-except FileNotFoundError:
-    st.error(
-        "Dataset not found. Please upload dataset.xlsx "
-        "inside the data folder."
+    st.error("Unable to load the EduPro dataset.")
+
+    st.code(str(error))
+
+    st.info(
+        "Check that 'EduPro Online Platform.xlsx' "
+        "is uploaded in the main GitHub repository folder "
+        "and contains the sheets Teachers, Courses, and Transactions."
     )
-    st.stop()
 
-except Exception as e:
-    st.error(f"Dashboard Error: {e}")
     st.stop()
 
 
@@ -65,9 +121,13 @@ except Exception as e:
 # SIDEBAR FILTERS
 # ============================================================
 
-st.sidebar.title("🎛️ Dashboard Controls")
+st.sidebar.title("Dashboard Filters")
 
-expertise_options = ["All"] + sorted(
+st.sidebar.markdown("Filter the analytics below.")
+
+# Expertise filter
+
+expertise_options = sorted(
     teachers_df["Expertise"]
     .dropna()
     .astype(str)
@@ -75,7 +135,16 @@ expertise_options = ["All"] + sorted(
     .tolist()
 )
 
-level_options = ["All"] + sorted(
+selected_expertise = st.sidebar.multiselect(
+    "Select Teacher Expertise",
+    options=expertise_options,
+    default=expertise_options
+)
+
+
+# Course level filter
+
+course_level_options = sorted(
     courses_df["CourseLevel"]
     .dropna()
     .astype(str)
@@ -83,257 +152,378 @@ level_options = ["All"] + sorted(
     .tolist()
 )
 
-selected_expertise = st.sidebar.selectbox(
-    "Instructor Expertise",
-    expertise_options
-)
-
-selected_level = st.sidebar.selectbox(
-    "Course Level",
-    level_options
+selected_course_levels = st.sidebar.multiselect(
+    "Select Course Level",
+    options=course_level_options,
+    default=course_level_options
 )
 
 
 # ============================================================
-# DATA FILTERING
+# APPLY FILTERS
 # ============================================================
 
-f_teachers = teachers_df.copy()
-f_master = master_df.copy()
+filtered_teachers = teachers_df[
+    teachers_df["Expertise"]
+    .astype(str)
+    .isin(selected_expertise)
+].copy()
 
-if selected_expertise != "All":
-    f_teachers = f_teachers[
-        f_teachers["Expertise"] == selected_expertise
-    ]
+filtered_courses = courses_df[
+    courses_df["CourseLevel"]
+    .astype(str)
+    .isin(selected_course_levels)
+].copy()
 
-    f_master = f_master[
-        f_master["Expertise"] == selected_expertise
-    ]
-
-if selected_level != "All":
-    f_master = f_master[
-        f_master["CourseLevel"] == selected_level
-    ]
+filtered_master = master_df[
+    master_df["Expertise"]
+    .astype(str)
+    .isin(selected_expertise)
+    &
+    master_df["CourseLevel"]
+    .astype(str)
+    .isin(selected_course_levels)
+].copy()
 
 
 # ============================================================
-# KEY PERFORMANCE INDICATORS
+# KPI METRICS
 # ============================================================
 
-st.markdown("## 📊 Key Performance Indicators")
+st.subheader("Platform Overview")
 
 col1, col2, col3, col4 = st.columns(4)
 
 average_teacher_rating = (
-    f_teachers["TeacherRating"].mean()
-    if not f_teachers.empty else 0
+    filtered_teachers["TeacherRating"].mean()
 )
 
 average_course_rating = (
-    f_master["CourseRating"].mean()
-    if not f_master.empty else 0
+    filtered_courses["CourseRating"].mean()
 )
 
-total_users = f_master["UserID"].nunique()
-total_enrollments = len(f_master)
+unique_users = filtered_master["UserID"].nunique()
+
+total_enrollments = len(filtered_master)
+
 
 col1.metric(
-    "⭐ Average Teacher Rating",
-    f"{average_teacher_rating:.2f}/5"
+    "Average Teacher Rating",
+    f"{average_teacher_rating:.2f}"
+    if pd.notna(average_teacher_rating)
+    else "N/A"
 )
 
 col2.metric(
-    "📚 Average Course Rating",
-    f"{average_course_rating:.2f}/5"
+    "Average Course Rating",
+    f"{average_course_rating:.2f}"
+    if pd.notna(average_course_rating)
+    else "N/A"
 )
 
 col3.metric(
-    "👥 Active Students",
-    f"{total_users:,}"
+    "Unique Users",
+    f"{unique_users:,}"
 )
 
 col4.metric(
-    "🎯 Total Enrollments",
+    "Total Enrollments",
     f"{total_enrollments:,}"
 )
 
-st.markdown("---")
+
+st.divider()
 
 
 # ============================================================
-# INSTRUCTOR PERFORMANCE
+# TEACHER PERFORMANCE
 # ============================================================
 
-st.markdown("## 🏆 Instructor Performance Analysis")
+st.subheader("Instructor Performance Analysis")
 
-chart_col1, chart_col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-with chart_col1:
-    st.markdown("### Instructor Leaderboard")
 
-    leaderboard = f_teachers.sort_values(
-        by="TeacherRating",
-        ascending=False
+# Teacher leaderboard
+
+with col1:
+
+    st.markdown("#### Top Instructors")
+
+    leaderboard = (
+        filtered_teachers
+        .sort_values(
+            by="TeacherRating",
+            ascending=False
+        )
+        .head(10)
     )
 
-    st.dataframe(
-        leaderboard[
-            [
-                "TeacherName",
-                "Expertise",
-                "TeacherRating",
-                "YearsOfExperience",
-                "Enrollments"
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True
-    )
+    if not leaderboard.empty:
 
-with chart_col2:
-    st.markdown("### Teaching Experience Distribution")
+        fig = px.bar(
+            leaderboard,
+            x="TeacherRating",
+            y="TeacherName",
+            orientation="h",
+            color="TeacherRating",
+            title="Top 10 Teachers by Rating",
+            labels={
+                "TeacherRating": "Teacher Rating",
+                "TeacherName": "Teacher"
+            }
+        )
 
-    if not f_teachers.empty:
-        fig = px.histogram(
-            f_teachers,
-            x="YearsOfExperience",
-            color="Expertise",
-            barmode="overlay",
-            title="Instructor Experience Distribution"
+        fig.update_layout(
+            yaxis={"categoryorder": "total ascending"},
+            height=450
         )
 
         st.plotly_chart(
             fig,
             use_container_width=True
         )
-    else:
-        st.info("No instructor data available.")
 
-st.markdown("---")
+    else:
+
+        st.info("No teacher data available for these filters.")
+
+
+# Teacher experience
+
+with col2:
+
+    st.markdown("#### Teaching Experience Distribution")
+
+    experience_data = filtered_teachers.dropna(
+        subset=["YearsOfExperience"]
+    )
+
+    if not experience_data.empty:
+
+        fig = px.histogram(
+            experience_data,
+            x="YearsOfExperience",
+            nbins=10,
+            title="Teacher Experience Distribution",
+            labels={
+                "YearsOfExperience": "Years of Experience"
+            }
+        )
+
+        fig.update_layout(height=450)
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
+
+    else:
+
+        st.info("No experience data available.")
+
+
+st.divider()
 
 
 # ============================================================
 # COURSE QUALITY ANALYSIS
 # ============================================================
 
-st.markdown("## 📚 Course Quality Analysis")
+st.subheader("Course Quality Analysis")
 
-course_col1, course_col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-with course_col1:
-    st.markdown("### Course Rating Distribution")
 
-    if not f_master.empty:
+# Course rating distribution
+
+with col1:
+
+    st.markdown("#### Course Rating Distribution")
+
+    rating_data = filtered_courses.dropna(
+        subset=["CourseRating"]
+    )
+
+    if not rating_data.empty:
+
         fig = px.histogram(
-            f_master,
+            rating_data,
             x="CourseRating",
-            color="CourseLevel",
-            title="Distribution of Course Ratings"
+            nbins=10,
+            title="Distribution of Course Ratings",
+            labels={
+                "CourseRating": "Course Rating"
+            }
         )
+
+        fig.update_layout(height=420)
 
         st.plotly_chart(
             fig,
             use_container_width=True
         )
+
     else:
-        st.info("No course data available.")
 
-with course_col2:
-    st.markdown("### Average Rating by Course Level")
+        st.info("No course rating data available.")
 
-    if not f_master.empty:
-        level_rating = (
-            f_master.groupby("CourseLevel")["CourseRating"]
-            .mean()
-            .reset_index()
-        )
+
+# Average rating by course level
+
+with col2:
+
+    st.markdown("#### Average Rating by Course Level")
+
+    level_rating = (
+        filtered_courses
+        .groupby("CourseLevel", as_index=False)
+        ["CourseRating"]
+        .mean()
+    )
+
+    if not level_rating.empty:
 
         fig = px.bar(
             level_rating,
             x="CourseLevel",
             y="CourseRating",
-            text_auto=".2f",
-            title="Average Course Rating"
+            color="CourseRating",
+            title="Course Level vs Average Rating",
+            labels={
+                "CourseLevel": "Course Level",
+                "CourseRating": "Average Rating"
+            }
         )
+
+        fig.update_layout(height=420)
 
         st.plotly_chart(
             fig,
             use_container_width=True
         )
+
     else:
-        st.info("No course data available.")
 
-st.markdown("---")
+        st.info("No course-level data available.")
+
+
+st.divider()
 
 
 # ============================================================
-# STUDENT ENROLLMENT ANALYTICS
+# ENROLLMENT ANALYSIS
 # ============================================================
 
-st.markdown("## 👥 Student Enrollment Analytics")
+st.subheader("Instructor Enrollment Analysis")
 
-if not f_master.empty:
-    enrollment_data = (
-        f_master.groupby("TeacherName")
-        .size()
-        .reset_index(name="Enrollments")
-        .sort_values(
-            by="Enrollments",
-            ascending=False
-        )
+enrollment_data = (
+    filtered_teachers
+    .sort_values(
+        by="Enrollments",
+        ascending=False
     )
+    .head(15)
+)
+
+if not enrollment_data.empty:
 
     fig = px.bar(
         enrollment_data,
         x="TeacherName",
         y="Enrollments",
         color="Enrollments",
-        title="Instructor-wise Student Enrollments",
-        text_auto=True
+        title="Top 15 Instructors by Enrollments",
+        labels={
+            "TeacherName": "Instructor",
+            "Enrollments": "Total Enrollments"
+        }
+    )
+
+    fig.update_layout(
+        xaxis_tickangle=-45,
+        height=500
     )
 
     st.plotly_chart(
         fig,
         use_container_width=True
     )
+
 else:
+
     st.info("No enrollment data available.")
 
 
-# ============================================================
-# INTEGRATED DATASET
-# ============================================================
-
-with st.expander("🔍 View Integrated Analytical Dataset"):
-    st.dataframe(
-        f_master,
-        use_container_width=True,
-        hide_index=True
-    )
+st.divider()
 
 
 # ============================================================
-# DOWNLOAD ANALYTICAL REPORTS
+# INTEGRATED DATA TABLE
 # ============================================================
 
-st.markdown("---")
+st.subheader("Integrated Analytics Dataset")
 
-st.markdown("## 📥 Download Analytical Reports")
+st.write(
+    "The following table displays the integrated "
+    "teacher, course, and transaction records."
+)
 
-download_col1, download_col2 = st.columns(2)
+st.dataframe(
+    filtered_master,
+    use_container_width=True,
+    hide_index=True
+)
 
-with download_col1:
+
+# ============================================================
+# DOWNLOAD REPORTS
+# ============================================================
+
+st.divider()
+
+st.subheader("Download Analytical Reports")
+
+col1, col2, col3 = st.columns(3)
+
+
+with col1:
+
+    teachers_csv = filtered_teachers.to_csv(
+        index=False
+    ).encode("utf-8")
+
     st.download_button(
-        "Download Instructor Report",
-        data=f_teachers.to_csv(index=False).encode("utf-8"),
-        file_name="instructor_report.csv",
+        label="Download Teacher Report",
+        data=teachers_csv,
+        file_name="teachers_enriched.csv",
         mime="text/csv"
     )
 
-with download_col2:
+
+with col2:
+
+    courses_csv = filtered_courses.to_csv(
+        index=False
+    ).encode("utf-8")
+
     st.download_button(
-        "Download Integrated Dataset",
-        data=f_master.to_csv(index=False).encode("utf-8"),
+        label="Download Course Report",
+        data=courses_csv,
+        file_name="courses_report.csv",
+        mime="text/csv"
+    )
+
+
+with col3:
+
+    master_csv = filtered_master.to_csv(
+        index=False
+    ).encode("utf-8")
+
+    st.download_button(
+        label="Download Integrated Report",
+        data=master_csv,
         file_name="master_analytics.csv",
         mime="text/csv"
     )
@@ -343,9 +533,14 @@ with download_col2:
 # FOOTER
 # ============================================================
 
-st.markdown("---")
+st.divider()
 
-st.caption(
-    "EduPro Quality Engine | Instructor Performance "
-    "& Course Quality Analytics"
+st.markdown(
+    """
+    <div style="text-align:center; color:gray;">
+        EduPro Analytics Dashboard |
+        Instructor Performance & Course Quality
+    </div>
+    """,
+    unsafe_allow_html=True
 )
