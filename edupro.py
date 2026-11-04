@@ -44,15 +44,15 @@ st.markdown("---")
 @st.cache_data
 def load_data():
 
-```
+
 return run_analytical_pipeline(
     "data/dataset.xlsx"
 )
-```
+
 
 try:
 
-```
+
 teachers_df, courses_df, master_df = load_data()
 
 # ========================================================
@@ -347,22 +347,22 @@ with download_col2:
         file_name="master_analytics.csv",
         mime="text/csv"
     )
-```
+
 
 except FileNotFoundError:
 
-```
+
 st.error(
     "Dataset not found. Please place dataset.xlsx "
     "inside the data folder."
 )
-```
+
 
 except Exception as e:
 
-```
+
 st.error(f"Dashboard Error: {e}")
-```
+
 
 # ============================================================
 
