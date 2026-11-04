@@ -38,12 +38,26 @@ transactions = pd.read_excel(
 # --------------------------------------------------------
 
 required_columns = {
-    "Teachers": ["TeacherID", "TeacherName", "Expertise",
-                 "TeacherRating", "YearsOfExperience"],
 
-    "Courses": ["CourseID", "CourseLevel", "CourseRating"],
+    "Teachers": [
+        "TeacherID",
+        "TeacherName",
+        "Expertise",
+        "TeacherRating",
+        "YearsOfExperience"
+    ],
 
-    "Transactions": ["CourseID", "TeacherID", "UserID"]
+    "Courses": [
+        "CourseID",
+        "CourseLevel",
+        "CourseRating"
+    ],
+
+    "Transactions": [
+        "CourseID",
+        "TeacherID",
+        "UserID"
+    ]
 }
 
 datasets = {
@@ -114,11 +128,12 @@ print("Teacher records:", len(teachers))
 print("Course records:", len(courses))
 print("Transaction records:", len(transactions))
 
-unmatched_courses = master_df["CourseID"].isna().sum()
-unmatched_teachers = master_df["TeacherID"].isna().sum()
+unmatched_courses = master_df["CourseRating"].isna().sum()
 
-print("Missing Course IDs:", unmatched_courses)
-print("Missing Teacher IDs:", unmatched_teachers)
+unmatched_teachers = master_df["TeacherName"].isna().sum()
+
+print("Unmatched course records:", unmatched_courses)
+print("Unmatched teacher records:", unmatched_teachers)
 
 # --------------------------------------------------------
 # 6. FINAL OUTPUT
@@ -161,7 +176,9 @@ print(
     ].head()
 )
 
-# Export processed datasets
+# --------------------------------------------------------
+# EXPORT PROCESSED DATASETS
+# --------------------------------------------------------
 
 teachers_df.to_csv(
     "teachers_enriched.csv",
